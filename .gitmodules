@@ -1,0 +1,6 @@
+[submodule "src/references/lwnet"]
+	path = src/references/lwnet
+	url = https://github.com/agaldran/lwnet.git
+[submodule "src/references/TransUNet"]
+	path = src/references/TransUNet
+	url = https://github.com/Beckschen/TransUNet.git
