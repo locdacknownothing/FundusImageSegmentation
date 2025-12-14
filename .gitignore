@@ -209,3 +209,7 @@ __marimo__/
 # dataset
 data/
 result/
+
+# nnUNet
+.nnunet/
+nnUNet_data/

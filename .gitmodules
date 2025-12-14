@@ -4,3 +4,6 @@
 [submodule "src/references/TransUNet"]
 	path = src/references/TransUNet
 	url = https://github.com/Beckschen/TransUNet.git
+[submodule "src/references/nnUNet"]
+	path = src/references/nnUNet
+	url = https://github.com/locdacknownothing/nnUNet.git
