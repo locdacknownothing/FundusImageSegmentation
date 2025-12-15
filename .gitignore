@@ -213,3 +213,9 @@ result/
 # nnUNet
 .nnunet/
 nnUNet_data/
+
+# temp folders/files
+temp*/
+tmp*/
+*.temp
+*.tmp
