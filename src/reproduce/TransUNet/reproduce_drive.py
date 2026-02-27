@@ -34,6 +34,7 @@ image = (
         "mkdir -p /assets/vit_checkpoint/imagenet21k",
         "mv R50+ViT-B_16.npz /assets/vit_checkpoint/imagenet21k/R50+ViT-B_16.npz"
     )
+    .pip_install("tiler")
     # Mount TransUNet source code
     .add_local_dir(
         "/home/locdac/Documents/DATN_ThS/FundusImageSegmentation/src/references/TransUNet",
@@ -104,7 +105,7 @@ def train_transunet():
         os.system(cmd_download_base)
         
         # Clean up other datasets downloaded by deepdyn command if we only want DRIVE
-        for d in ["VEVIO", "STARE", "CHASEDB", "AV-WIDE", "HRF", "DR-HAGIS", "LES-AV"]:
+        for d in ["VEVIO", "STARE", "AV-WIDE", "DR-HAGIS", "LES-AV"]:
              if os.path.exists(d):
                  shutil.rmtree(d)
         
@@ -177,7 +178,7 @@ def train_transunet():
     else:
         print("DRIVE data found in volume.")
         
-    os.chdir("/app/transunet")
+    os.chdir("/app")
 
     print("Starting training for DRIVE...")
     print("Current working directory:", os.getcwd())
@@ -186,7 +187,7 @@ def train_transunet():
     # Run the training command
     # DRIVE training
     # batch size 12, lr 0.005
-    cmd = "python train.py --dataset DRIVE --vit_name R50-ViT-B_16 --batch_size 1 --base_lr 0.005 --max_epochs 150 --img_size 224"
+    cmd = "python transunet/train.py --dataset DRIVE --vit_name R50-ViT-B_16 --batch_size 16 --base_lr 0.005 --max_epochs 2000 --img_size 224"
     
     print(f"Executing: {cmd}")
     ret = os.system(cmd)
@@ -200,71 +201,41 @@ def train_transunet():
     model_volume.commit()
     
 
-@app.function(
-    image=image,
-    gpu="t4",
-    volumes={
-        "/app/model": model_volume,
-        "/app/data": data_volume
-    }, 
-    timeout=86400 # 24 hours
-)
-def test_transunet():
-    import shutil
-    import os
-
-    # NOTE: delete redundant dir if exists
-    if os.path.exists("/app/model/predictions_drive"):
-        shutil.rmtree("/app/model/predictions_drive")
-    
-    os.chdir("/app/transunet")
-
-    # Run the test command
-    # For test, we need to ensure correct path for test dataset is used (handled by Drive_dataset logic using test.csv)
-    # We add --is_savenii (though we modified utils to save pngs too)
-    test_cmd = "python test.py --dataset DRIVE --vit_name R50-ViT-B_16 --batch_size 1 --base_lr 0.005 --is_savenii --test_save_dir /app/model/predictions --img_size 224"
-    
-    print(f"Executing Testing: {test_cmd}")
-    ret = os.system(test_cmd)
-    
-    if ret != 0:
-        raise Exception("Testing failed. Check logs for details.")
-        
-    print("Testing finished successfully.")
-    print("Predictions saved to /app/model/predictions in the volume.")
-    
-    # Commit the volume to ensure everything is saved
-    model_volume.commit()
-
 # @app.function(
 #     image=image,
-#     volumes={"/app/model": model_volume},
-#     timeout=86400, # Keep running
+#     gpu="t4",
+#     volumes={
+#         "/app/model": model_volume,
+#         "/app/data": data_volume
+#     }, 
+#     timeout=86400 # 24 hours
 # )
-# @modal.web_server(port=6006)
-# def tensorboard_app():
-#     import subprocess
-#     import time
-#     import glob
+# def test_transunet():
+#     import shutil
 #     import os
-    
-#     print("Starting TensorBoard...")
-    
-#     # Dynamically find the log directory
-#     # Pattern based on training args: /app/model/TU_DRIVE224/TU_pretrain*/log
-#     search_pattern = "/app/model/TU_DRIVE224/TU_pretrain*/log"
-#     matches = glob.glob(search_pattern)
-    
-#     if matches:
-#         log_dir = matches[0]
-#         print(f"Found specific log directory: {log_dir}")
-#     else:
-#         log_dir = "/app/model"
-#         print(f"Specific log directory not found, defaulting to: {log_dir}")
 
-#     subprocess.Popen(["tensorboard", "--logdir", log_dir, "--port", "6006", "--bind_all"])
-#     while True:
-#         time.sleep(1)
+#     # NOTE: delete redundant dir if exists
+#     if os.path.exists("/app/model/predictions_drive"):
+#         shutil.rmtree("/app/model/predictions_drive")
+    
+#     os.chdir("/app/transunet")
+
+#     # Run the test command
+#     # For test, we need to ensure correct path for test dataset is used (handled by Drive_dataset logic using test.csv)
+#     # We add --is_savenii (though we modified utils to save pngs too)
+#     test_cmd = "python test.py --dataset DRIVE --vit_name R50-ViT-B_16 --batch_size 1 --base_lr 0.005 --is_savenii --test_save_dir /app/model/predictions --max_epochs 1000 --img_size 224"
+    
+#     print(f"Executing Testing: {test_cmd}")
+#     ret = os.system(test_cmd)
+    
+#     if ret != 0:
+#         raise Exception("Testing failed. Check logs for details.")
+        
+#     print("Testing finished successfully.")
+#     print("Predictions saved to /app/model/predictions in the volume.")
+    
+#     # Commit the volume to ensure everything is saved
+#     model_volume.commit()
 
 @app.local_entrypoint()
 def main():
@@ -273,4 +244,4 @@ def main():
     # print("To serve TensorBoard, run: modal serve reproduce_drive.py (in a separate terminal)")
     
     train_transunet.remote()
-    test_transunet.remote()
+    # test_transunet.remote()
