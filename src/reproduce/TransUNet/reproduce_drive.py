@@ -1,5 +1,9 @@
-import modal
 import os
+import os.path as osp
+import shutil
+
+import modal
+import pandas as pd
 
 app = modal.App("transunet-drive")
 
@@ -38,7 +42,8 @@ image = (
     # Mount TransUNet source code
     .add_local_dir(
         "/home/locdac/Documents/DATN_ThS/FundusImageSegmentation/src/references/TransUNet",
-        remote_path="/app/transunet"
+        remote_path="/app/transunet",
+        ignore=[".vscode", "agent/", "data/", "__pycache__", "*.ipynb"]
     )
 )
 
@@ -55,12 +60,6 @@ data_volume = modal.Volume.from_name("transunet-data", create_if_missing=True)
     timeout=86400 # 24 hours
 )
 def train_transunet():
-    import os
-    import shutil
-    import pandas as pd
-    import numpy as np
-    from skimage import io
-    
     # Change working directory to the code
     os.chdir("/app/transunet")
     
@@ -118,14 +117,20 @@ def train_transunet():
               '&& mkdir -p DRIVE/manual_av && mv DRIVE/AV_groundTruth/training/av/* DRIVE/manual_av ' \
               '&& mv DRIVE/AV_groundTruth/test/av/* DRIVE/manual_av && rm -r DRIVE/AV_groundTruth'
         os.system(cmd_av)
+                
+        # AV Split logic (if needed, but TransUNet normally does Segmentation not AV classification unless specified)
+        # But let's generate them just in case or if we want to use them.
+        # The prompt implies we want to reproduce TransUNet on DRIVE, usually vessel segmentation.
+        # But AV was in get_public_data.py.
+        # We'll stick to vessel segmentation (manual) for now unless specified otherwise.
+        # If we need AV, we swap manual with manual_av in paths.
         
         # Now prepare CSVs
         print("Generating CSV splits...")
-        import os.path as osp
         
-        path_ims = 'DRIVE/images'
-        path_masks = 'DRIVE/mask'
-        path_gts = 'DRIVE/manual'
+        path_ims = osp.join(drive_data_path, 'images')
+        path_masks = osp.join(drive_data_path, 'mask')
+        path_gts = osp.join(drive_data_path, 'manual')
         
         all_im_names = sorted(os.listdir(path_ims))
         all_mask_names = sorted(os.listdir(path_masks))
@@ -133,14 +138,6 @@ def train_transunet():
         
         # append paths
         num_ims = len(all_im_names)
-        # We want paths relative to /app/data, so "DRIVE/images/..." works if we set root_path to /app/data
-        # OR we use absolute paths: /app/data/DRIVE/images/...
-        # dataset_drive.py appends base_dir.
-        # If base_dir is /app/data/DRIVE, then paths in CSV should be "images/..."
-        # But get_public_data.py used "data/DRIVE/images/..." relative to repo root.
-        # Let's use logic compatible with our dataset_drive.py in previous step.
-        # dataset_drive.py tries to strip 'data/DRIVE/'.
-        # Let's write CSV with "DRIVE/images/..." and adhere to that.
         
         all_im_names = [osp.join(osp.abspath(path_ims), n) for n in all_im_names]
         all_mask_names = [osp.join(osp.abspath(path_masks), n) for n in all_mask_names]
@@ -162,20 +159,13 @@ def train_transunet():
         # Split train into train/val
         df_drive_train, df_drive_val = df_drive_train[:16], df_drive_train[16:]
         
-        df_drive_train.to_csv('DRIVE/train.csv', index=False)
-        df_drive_val.to_csv('DRIVE/val.csv', index=False)
-        df_drive_test.to_csv('DRIVE/test.csv', index=False)
-        
-        # AV Split logic (if needed, but TransUNet normally does Segmentation not AV classification unless specified)
-        # But let's generate them just in case or if we want to use them.
-        # The prompt implies we want to reproduce TransUNet on DRIVE, usually vessel segmentation.
-        # But AV was in get_public_data.py.
-        # We'll stick to vessel segmentation (manual) for now unless specified otherwise.
-        # If we need AV, we swap manual with manual_av in paths.
-        
+        df_drive_train.to_csv(osp.join(drive_data_path, 'train.csv'), index=False)
+        df_drive_val.to_csv(osp.join(drive_data_path, 'val.csv'), index=False)
+        df_drive_test.to_csv(osp.join(drive_data_path, 'test.csv'), index=False)
         print("Data preparation complete.")
         data_volume.commit()
     else:
+
         print("DRIVE data found in volume.")
         
     os.chdir("/app")
@@ -186,8 +176,16 @@ def train_transunet():
     
     # Run the training command
     # DRIVE training
-    # batch size 12, lr 0.005
-    cmd = "python transunet/train.py --dataset DRIVE --vit_name R50-ViT-B_16 --batch_size 16 --base_lr 0.005 --max_epochs 2000 --img_size 224"
+    cmd = """
+    python transunet/train.py \\
+        --dataset DRIVE \\
+        --vit_name R50-ViT-B_16 \\
+        --batch_size 40 \\
+        --base_lr 0.005 \\
+        --max_epochs 1000 \\
+        --img_size 224
+    """
+        # --resume /app/model/TU_DRIVE224/TU_pretrain_R50-ViT-B_16_tile__vessel_focal_fov_skip3_epo2000_bs64_lr0.005_224/latest_model.pth \\
     
     print(f"Executing: {cmd}")
     ret = os.system(cmd)
@@ -201,47 +199,42 @@ def train_transunet():
     model_volume.commit()
     
 
-# @app.function(
-#     image=image,
-#     gpu="t4",
-#     volumes={
-#         "/app/model": model_volume,
-#         "/app/data": data_volume
-#     }, 
-#     timeout=86400 # 24 hours
-# )
-# def test_transunet():
-#     import shutil
-#     import os
+@app.function(
+    image=image,
+    gpu="t4",
+    volumes={   
+        "/app/model": model_volume,
+        "/app/data": data_volume
+    }, 
+    timeout=86400 # 24 hours
+)
+def test_transunet():
+    os.chdir("/app")
 
-#     # NOTE: delete redundant dir if exists
-#     if os.path.exists("/app/model/predictions_drive"):
-#         shutil.rmtree("/app/model/predictions_drive")
-    
-#     os.chdir("/app/transunet")
+    # Run the test command
+    # For test, we need to ensure correct path for test dataset is used (handled by Drive_dataset logic using test.csv)
+    # We add --is_savenii (though we modified utils to save pngs too)
+    test_cmd = """
+    python transunet/test.py \\
+        --test_save_dir /app/model/predictions \\
+        --dataset DRIVE \\
+        --vit_name R50-ViT-B_16 \\
+        --batch_size 40 \\
+        --base_lr 0.005 \\
+        --max_epochs 1000 \\
+        --img_size 224 \\
+        --mode best_model \\
+        --is_save
+    """
 
-#     # Run the test command
-#     # For test, we need to ensure correct path for test dataset is used (handled by Drive_dataset logic using test.csv)
-#     # We add --is_savenii (though we modified utils to save pngs too)
-#     test_cmd = "python test.py --dataset DRIVE --vit_name R50-ViT-B_16 --batch_size 1 --base_lr 0.005 --is_savenii --test_save_dir /app/model/predictions --max_epochs 1000 --img_size 224"
+    print(f"Executing Testing: {test_cmd}")
+    ret = os.system(test_cmd)
     
-#     print(f"Executing Testing: {test_cmd}")
-#     ret = os.system(test_cmd)
-    
-#     if ret != 0:
-#         raise Exception("Testing failed. Check logs for details.")
+    if ret != 0:
+        raise Exception("Testing failed. Check logs for details.")
         
-#     print("Testing finished successfully.")
-#     print("Predictions saved to /app/model/predictions in the volume.")
+    print("Testing finished successfully.")
+    print("Predictions saved to /app/model/predictions in the volume.")
     
-#     # Commit the volume to ensure everything is saved
-#     model_volume.commit()
-
-@app.local_entrypoint()
-def main():
-    print("Starting remote training and testing for DRIVE...")
-    print("Results will be saved to the 'transunet-models' volume.")
-    # print("To serve TensorBoard, run: modal serve reproduce_drive.py (in a separate terminal)")
-    
-    train_transunet.remote()
-    # test_transunet.remote()
+    # Commit the volume to ensure everything is saved
+    model_volume.commit()

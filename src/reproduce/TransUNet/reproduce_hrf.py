@@ -1,11 +1,12 @@
-import modal
 import os
 import os.path as osp
 import shutil
 
+import modal
+import numpy as np
+import pandas as pd
 from PIL import Image
 from tqdm import tqdm
-from torchvision.transforms.functional import resize
 
 app = modal.App("transunet-hrf")
 
@@ -44,7 +45,8 @@ image = (
     # Mount TransUNet source code
     .add_local_dir(
         "/home/locdac/Documents/DATN_ThS/FundusImageSegmentation/src/references/TransUNet",
-        remote_path="/app/transunet"
+        remote_path="/app/transunet",
+        ignore=[".vscode", "agent/", "data/", "__pycache__", "*.ipynb"]
     )
 )
 
@@ -53,7 +55,7 @@ data_volume = modal.Volume.from_name("transunet-data", create_if_missing=True)
 
 @app.function(
     image=image,
-    gpu="t4",
+    gpu="l4",
     volumes={
         "/app/model": model_volume,
         "/app/data": data_volume
@@ -61,11 +63,7 @@ data_volume = modal.Volume.from_name("transunet-data", create_if_missing=True)
     timeout=86400 # 24 hours
 )
 def train_transunet():
-    import os
-    import shutil
-    import pandas as pd
-    import numpy as np
-    from skimage import io
+    from torchvision.transforms.functional import resize
     
     # Change working directory to the code
     os.chdir("/app/transunet")
@@ -202,8 +200,20 @@ def train_transunet():
     print("Current working directory:", os.getcwd())
     print("Data directory content (/app/data/HRF):", os.listdir("/app/data/HRF"))
     
-    cmd = "python transunet/train.py --dataset HRF --vit_name R50-ViT-B_16 --batch_size 32 --base_lr 0.005 --max_epochs 2000 --img_size 224"
-    
+    # Run the training command# Run the training command
+    # HRF training
+    cmd = """
+    python transunet/train.py \\
+        --dataset HRF \\
+        --vit_name R50-ViT-B_16 \\
+        --batch_size 48 \\
+        --base_lr 0.005 \\
+        --max_epochs 1000 \\
+        --img_size 224
+    """
+    # Remember to add before last flag
+        # --resume /app/model/TU_HRF224/TU_pretrain_R50-ViT-B_16_skip3_HRFTileDataset_vessel_ce4_dice4_cldice2_epo1000_bs48_lr0.005_224/latest_model.pth \\
+        
     print(f"Executing: {cmd}")
     ret = os.system(cmd)
     
@@ -216,47 +226,40 @@ def train_transunet():
     model_volume.commit()
     
 
-# @app.function(
-#     image=image,
-#     gpu="t4",
-#     volumes={
-#         "/app/model": model_volume,
-#         "/app/data": data_volume
-#     }, 
-#     timeout=86400 # 24 hours
-# )
-# def test_transunet():
-#     import shutil
-#     import os
+@app.function(
+    image=image,
+    gpu="t4",
+    volumes={
+        "/app/model": model_volume,
+        "/app/data": data_volume
+    }, 
+    timeout=86400 # 24 hours
+)
+def test_transunet():
+    os.chdir("/app")
 
-#     # NOTE: delete redundant dir if exists
-#     if os.path.exists("/app/model/predictions_drive"):
-#         shutil.rmtree("/app/model/predictions_drive")
+    # Run the test command
+    test_cmd = """
+    python transunet/test.py \\
+        --test_save_dir /app/model/predictions \\
+        --dataset HRF \\
+        --vit_name R50-ViT-B_16 \\
+        --batch_size 48 \\
+        --base_lr 0.005 \\
+        --max_epochs 1000 \\
+        --img_size 224 \\
+        --mode best_model \\
+        --is_save
+    """
     
-#     os.chdir("/app/transunet")
-
-#     # Run the test command
-#     # For test, we need to ensure correct path for test dataset is used (handled by Drive_dataset logic using test.csv)
-#     # We add --is_savenii (though we modified utils to save pngs too)
-#     test_cmd = "python test.py --dataset HRF --vit_name R50-ViT-B_16 --batch_size 2 --base_lr 0.005 --is_savenii --test_save_dir /app/model/predictions --img_size 224"
+    print(f"Executing Testing: {test_cmd}")
+    ret = os.system(test_cmd)
     
-#     print(f"Executing Testing: {test_cmd}")
-#     ret = os.system(test_cmd)
-    
-#     if ret != 0:
-#         raise Exception("Testing failed. Check logs for details.")
+    if ret != 0:
+        raise Exception("Testing failed. Check logs for details.")
         
-#     print("Testing finished successfully.")
-#     print("Predictions saved to /app/model/predictions in the volume.")
+    print("Testing finished successfully.")
+    print("Predictions saved to /app/model/predictions in the volume.")
     
-#     # Commit the volume to ensure everything is saved
-#     model_volume.commit()
-
-@app.local_entrypoint()
-def main():
-    print("Starting remote training and testing for HRF...")
-    print("Results will be saved to the 'transunet-models' volume.")
-    # print("To serve TensorBoard, run: modal serve reproduce_drive.py (in a separate terminal)")
-    
-    train_transunet.remote()
-    # test_transunet.remote()
+    # Commit the volume to ensure everything is saved
+    model_volume.commit()

@@ -4,8 +4,9 @@ This directory contains scripts to reproduce TransUNet training results using Mo
 
 ## Prerequisites
 
-1.  **Modal Account**: You need a Modal account.
-2.  **Data**: The BTCV dataset should be downloaded and unzipped in `data/BTCV`.
+1. **Modal Version**: must be compatible with `Python 3.9`, version `1.2.6` recommended. 
+2. **Modal Account**: You need a Modal account.
+3. **Data**: The BTCV dataset should be downloaded and unzipped in `data/BTCV`.
     *   The script `download_data.py` downloads the data.
     *   The zip file `project_TransUNet.zip` should be unzipped. (This has been done).
 
@@ -16,24 +17,28 @@ This directory contains scripts to reproduce TransUNet training results using Mo
     *   Copy `.env.example` to `.env` (if you haven't already).
     *   Run the following command to authenticate (uses the local virtual environment):
         ```bash
-        ../../../.venv/bin/modal setup
+        modal setup
         ```
     *   Alternatively, manually populate `.env` with `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` from your [Modal Dashboard](https://modal.com/settings/tokens).
 
 ## Running the Reproduction
 
-To start the training on Modal using the local virtual environment:
+To start the training/test on Modal using the local virtual environment:
 
 ```bash
-../../../.venv/bin/modal run reproduce_transunet.py
+modal run --detach reproduce_*.py::train_transunet
+```
+or
+```bash
+modal run reproduce_*.py::test_transunet
 ```
 
 This will:
-1.  Build a Docker image with Python 3.7 and dependencies.
-2.  Download the pre-trained ViT model.
-3.  Mount the code and data.
-4.  Run the training script (`train.py`) on a GPU.
-5.  Save checkpoints to a Modal Volume named `transunet-models`.
+1.  Build a Docker image with Python 3.9 and dependencies.
+2.  Download the pre-trained ViT model and data.
+3.  Mount the code.
+4.  Run the training script (`train.py`), or test script (`test.py`) on a GPU.
+5.  Save training or test results (checkpoints, logs, etc.) to a Modal Volume named `transunet-models`.
 
 ## Results
 
@@ -41,15 +46,16 @@ This will:
 Checkpoints are saved in the `transunet-models` volume.
 You can manage volumes via the Modal dashboard or CLI.
 
-- The detached App will keep running. You can track its progress on the Dashboard: 
-https://modal.com/apps/hcmut-edu-vn/main/ap-vOWKSDoOH16OIhnK8mJM3j
+- The detached App will keep running, i.e. run with `--detach` flag. 
+You can track its progress on the Dashboard. For example:
+`https://modal.com/apps/{project}/main/{long_id}`
 
 Stream App logs:
 ```
-modal app logs ap-vOWKSDoOH16OIhnK8mJM3j
+modal app logs {long_id}
 ```
 
 Stop the App:
 ```
-modal app stop ap-vOWKSDoOH16OIhnK8mJM3j
+modal app stop {long_id}
 ```

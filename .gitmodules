@@ -7,3 +7,6 @@
 [submodule "src/references/nnUNet"]
 	path = src/references/nnUNet
 	url = https://github.com/locdacknownothing/nnUNet.git
+[submodule "src/references/lwnet_forked"]
+	path = src/references/lwnet_forked
+	url = https://github.com/locdacknownothing/lwnet.git

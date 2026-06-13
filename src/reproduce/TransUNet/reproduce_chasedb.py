@@ -1,5 +1,9 @@
-import modal
 import os
+import os.path as osp
+import shutil
+
+import modal
+import pandas as pd
 
 app = modal.App("transunet-chasedb")
 
@@ -38,7 +42,8 @@ image = (
     # Mount TransUNet source code
     .add_local_dir(
         "/home/locdac/Documents/DATN_ThS/FundusImageSegmentation/src/references/TransUNet",
-        remote_path="/app/transunet"
+        remote_path="/app/transunet",
+        ignore=[".vscode", "agent/", "data/", "__pycache__", "*.ipynb"]
     )
 )
 
@@ -55,12 +60,6 @@ data_volume = modal.Volume.from_name("transunet-data", create_if_missing=True)
     timeout=86400 # 24 hours
 )
 def train_transunet():
-    import os
-    import shutil
-    import pandas as pd
-    import numpy as np
-    from skimage import io
-    
     # Change working directory to the code
     os.chdir("/app/transunet")
     
@@ -80,11 +79,6 @@ def train_transunet():
     # 2. Check and Prepare CHASEDB Data
     dataset_path = "/app/data/CHASEDB"
 
-    # # DEBUG: Remove existing data
-    # if os.path.exists(drive_data_path):
-    #     shutil.rmtree(drive_data_path)
-    #     data_volume.commit()
-
     if not os.path.exists(dataset_path) or not os.listdir(dataset_path) or not os.path.exists(os.path.join(dataset_path, "train.csv")):
         print("CHASEDB data not found. Downloading and preparing...")
         os.makedirs(dataset_path, exist_ok=True)
@@ -96,7 +90,6 @@ def train_transunet():
             
         # Generate CSVs
         print("Generating CSV splits...")
-        import os.path as osp
         
         path_ims = 'CHASEDB/images'
         # path_masks = 'CHASEDB/masks'
@@ -144,7 +137,16 @@ def train_transunet():
     print("Current working directory:", os.getcwd())
     print("Data directory content (/app/data/CHASEDB):", os.listdir("/app/data/CHASEDB"))
     
-    cmd = "python transunet/train.py --dataset CHASEDB --vit_name R50-ViT-B_16 --batch_size 16 --base_lr 0.005 --max_epochs 2000 --img_size 224"
+    cmd = """
+    python transunet/train.py \\
+        --dataset CHASEDB \\
+        --vit_name R50-ViT-B_16 \\
+        --batch_size 40 \\
+        --base_lr 0.005 \\
+        --max_epochs 1000 \\
+        --img_size 224
+    """
+        # --resume /app/model/TU_CHASEDB224/TU_pretrain_R50-ViT-B_16_vessel_fov_skip3_epo2000_bs32_lr0.005_224/latest_model.pth \\
     
     print(f"Executing: {cmd}")
     ret = os.system(cmd)
@@ -158,48 +160,42 @@ def train_transunet():
     model_volume.commit()
     
 
-# @app.function(
-#     image=image,
-#     gpu="t4",
-#     volumes={
-#         "/app/model": model_volume,
-#         "/app/data": data_volume
-#     }, 
-#     timeout=86400 # 24 hours
-# )
-# def test_transunet():
-#     import shutil
-#     import os
+@app.function(
+    image=image,
+    gpu="t4",
+    volumes={
+        "/app/model": model_volume,
+        "/app/data": data_volume
+    }, 
+    timeout=86400 # 24 hours
+)
+def test_transunet():
+    os.chdir("/app")
 
-#     # NOTE: delete redundant dir if exists
-#     if os.path.exists("/app/model/predictions_drive"):
-#         shutil.rmtree("/app/model/predictions_drive")
-    
-#     os.chdir("/app/transunet")
+    # Run the test command
+    # For test, we need to ensure correct path for test dataset is used (handled by Drive_dataset logic using test.csv)
+    # We add --is_savenii (though we modified utils to save pngs too)
+    test_cmd = """
+    python transunet/test.py \\
+        --test_save_dir /app/model/predictions \\
+        --dataset CHASEDB \\
+        --vit_name R50-ViT-B_16 \\
+        --batch_size 4 \\
+        --base_lr 0.005 \\
+        --max_epochs 2000 \\
+        --img_size 224 \\
+        --mode best_model \\
+        --is_save
+    """
 
-#     # Run the test command
-#     # For test, we need to ensure correct path for test dataset is used (handled by Drive_dataset logic using test.csv)
-#     # We add --is_savenii (though we modified utils to save pngs too)
-#     test_cmd = "python test.py --dataset CHASEDB --vit_name R50-ViT-B_16 --batch_size 2 --base_lr 0.005 --is_savenii --test_save_dir /app/model/predictions --img_size 224"
+    print(f"Executing Testing: {test_cmd}")
+    ret = os.system(test_cmd)
     
-#     print(f"Executing Testing: {test_cmd}")
-#     ret = os.system(test_cmd)
-    
-#     if ret != 0:
-#         raise Exception("Testing failed. Check logs for details.")
+    if ret != 0:
+        raise Exception("Testing failed. Check logs for details.")
         
-#     print("Testing finished successfully.")
-#     print("Predictions saved to /app/model/predictions in the volume.")
+    print("Testing finished successfully.")
+    print("Predictions saved to /app/model/predictions in the volume.")
     
-#     # Commit the volume to ensure everything is saved
-#     model_volume.commit()
-
-
-@app.local_entrypoint()
-def main():
-    print("Starting remote training and testing for CHASEDB...")
-    print("Results will be saved to the 'transunet-models' volume.")
-    # print("To serve TensorBoard, run: modal serve reproduce_drive.py (in a separate terminal)")
-    
-    train_transunet.remote()
-    # test_transunet.remote()
+    # Commit the volume to ensure everything is saved
+    model_volume.commit()
