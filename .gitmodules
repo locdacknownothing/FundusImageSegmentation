@@ -1,9 +1,3 @@
-[submodule "src/references/lwnet"]
-	path = src/references/lwnet
-	url = https://github.com/agaldran/lwnet.git
-[submodule "src/references/TransUNet"]
-	path = src/references/TransUNet
-	url = https://github.com/Beckschen/TransUNet.git
 [submodule "src/references/nnUNet"]
 	path = src/references/nnUNet
 	url = https://github.com/locdacknownothing/nnUNet.git
@@ -13,3 +7,6 @@
 [submodule "src/references/RSAN"]
 	path = src/references/RSAN
 	url = https://github.com/locdacknownothing/RSAN.git
+[submodule "src/references/TransUNet"]
+	path = src/references/TransUNet
+	url = https://github.com/locdacknownothing/TransUNet.git
