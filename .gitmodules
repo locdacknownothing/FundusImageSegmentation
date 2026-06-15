@@ -10,3 +10,6 @@
 [submodule "src/references/lwnet_forked"]
 	path = src/references/lwnet_forked
 	url = https://github.com/locdacknownothing/lwnet.git
+[submodule "src/references/RSAN"]
+	path = src/references/RSAN
+	url = https://github.com/locdacknownothing/RSAN.git
