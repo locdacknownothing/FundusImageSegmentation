@@ -10,3 +10,12 @@
 [submodule "src/references/TransUNet"]
 	path = src/references/TransUNet
 	url = https://github.com/locdacknownothing/TransUNet.git
+[submodule "src/references/clDice"]
+	path = src/references/clDice
+	url = https://github.com/jocpae/clDice.git
+[submodule "src/references/SA-UNetv2"]
+	path = src/references/SA-UNetv2
+	url = https://github.com/locdacknownothing/SA-UNetv2.git
+[submodule "src/references/SA-UNet"]
+	path = src/references/SA-UNet
+	url = https://github.com/locdacknownothing/SA-UNet.git
