@@ -16,3 +16,6 @@
 [submodule "src/references/SA-UNet"]
 	path = src/references/SA-UNet
 	url = https://github.com/locdacknownothing/SA-UNet.git
+[submodule "src/references/Medical-SAM-Adapter"]
+	path = src/references/Medical-SAM-Adapter
+	url = https://github.com/locdacknownothing/Medical-SAM-Adapter.git
