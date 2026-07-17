@@ -19,3 +19,6 @@
 [submodule "src/references/Medical-SAM-Adapter"]
 	path = src/references/Medical-SAM-Adapter
 	url = https://github.com/locdacknownothing/Medical-SAM-Adapter.git
+[submodule "src/references/Pytorch-UNet"]
+	path = src/references/Pytorch-UNet
+	url = https://github.com/locdacknownothing/Pytorch-UNet.git
