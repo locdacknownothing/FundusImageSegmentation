@@ -22,3 +22,6 @@
 [submodule "src/references/Pytorch-UNet"]
 	path = src/references/Pytorch-UNet
 	url = https://github.com/locdacknownothing/Pytorch-UNet.git
+[submodule "src/references/pytorch-nested-unet"]
+	path = src/references/pytorch-nested-unet
+	url = https://github.com/locdacknownothing/pytorch-nested-unet.git
