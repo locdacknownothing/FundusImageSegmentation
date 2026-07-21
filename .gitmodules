@@ -25,3 +25,6 @@
 [submodule "src/references/pytorch-nested-unet"]
 	path = src/references/pytorch-nested-unet
 	url = https://github.com/locdacknownothing/pytorch-nested-unet.git
+[submodule "src/references/Attention-Gated-Networks"]
+	path = src/references/Attention-Gated-Networks
+	url = https://github.com/locdacknownothing/Attention-Gated-Networks.git
