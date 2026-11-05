@@ -28,3 +28,6 @@
 [submodule "src/references/Attention-Gated-Networks"]
 	path = src/references/Attention-Gated-Networks
 	url = https://github.com/locdacknownothing/Attention-Gated-Networks.git
+[submodule "src/references/RETFound"]
+	path = src/references/RETFound
+	url = https://github.com/locdacknownothing/RETFound.git
