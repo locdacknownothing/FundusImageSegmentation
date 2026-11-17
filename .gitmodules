@@ -31,3 +31,6 @@
 [submodule "src/references/RETFound"]
 	path = src/references/RETFound
 	url = https://github.com/locdacknownothing/RETFound.git
+[submodule "src/references/FunduSegmenter"]
+	path = src/references/FunduSegmenter
+	url = https://github.com/locdacknownothing/FunduSegmenter.git
